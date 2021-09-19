@@ -1,16 +1,10 @@
 import User from "../entities/User";
-import { Resolver, Arg, Mutation, Query } from "type-graphql";
+import { Resolver, Arg, Mutation, Query, Ctx } from "type-graphql";
 import argon2 from "argon2";
 import { UserResponse } from "../types/UserResponse";
 import { isPhoneNumber } from "../utils/PhoneValidator";
-import {
-  EXISTING_PHONE_NUMBER_CODE,
-  INVALID_PHONE_NUMBER_CODE,
-  NON_EXISTING_PHONE_NUMBER_CODE,
-  SUCCESS_LOGIN_CODE,
-  SUCCESS_REGISTER_CODE,
-  WRONG_PASSWORD_CODE,
-} from "../constants/User";
+import { Context } from "../types/Context";
+import { SESSION_COOKIE_NAME } from "../constants/CookieConstants";
 
 @Resolver()
 export class UserResolver {
@@ -23,12 +17,13 @@ export class UserResolver {
     @Arg("phone") phone: string,
     @Arg("password") password: string,
     @Arg("firstName") firstName: string,
-    @Arg("lastName") lastName: string
+    @Arg("lastName") lastName: string,
+    @Ctx() { req }: Context
   ): Promise<UserResponse | null> {
     try {
       if (!isPhoneNumber(phone)) {
         return {
-          code: INVALID_PHONE_NUMBER_CODE,
+          code: 400,
           success: false,
           message: "Invalid phone number",
         };
@@ -38,7 +33,7 @@ export class UserResolver {
       const user = await User.findOne({ phone: phone });
       if (user) {
         const rs = {
-          code: EXISTING_PHONE_NUMBER_CODE,
+          code: 400,
           success: false,
           message: "Phone already exists",
         };
@@ -56,11 +51,14 @@ export class UserResolver {
       }).save();
 
       const rs = {
-        code: SUCCESS_REGISTER_CODE,
+        code: 200,
         success: true,
         message: "Successfully",
         data: newUser,
       };
+
+      // Create session
+      req.session.userId = rs.data.id;
 
       return rs;
     } catch (error) {
@@ -76,12 +74,13 @@ export class UserResolver {
   @Query(() => UserResponse, { nullable: true })
   async login(
     @Arg("phone") phone: string,
-    @Arg("password") password: string
+    @Arg("password") password: string,
+    @Ctx() { req }: Context
   ): Promise<UserResponse | null> {
     try {
       if (!isPhoneNumber(phone)) {
         return {
-          code: INVALID_PHONE_NUMBER_CODE,
+          code: 400,
           success: false,
           message: "Invalid phone number form",
         };
@@ -90,7 +89,7 @@ export class UserResolver {
       const user = await User.findOne({ phone: phone });
       if (!user) {
         return {
-          code: NON_EXISTING_PHONE_NUMBER_CODE,
+          code: 400,
           success: false,
           message: "Phone number not found",
         };
@@ -99,23 +98,62 @@ export class UserResolver {
       const isValid = await argon2.verify(user.password, password);
       if (!isValid) {
         return {
-          code: WRONG_PASSWORD_CODE,
+          code: 400,
           success: false,
           message: "Wrong password",
         };
       }
 
+      // Create Successful Login response
       const rs = {
-        code: SUCCESS_LOGIN_CODE,
+        code: 200,
         success: true,
         message: "Successfully",
         data: user,
       };
 
+      // Create session
+      req.session.userId = rs.data.id;
+
       return rs;
     } catch (error) {
       console.log(error);
       return null;
+    }
+  }
+
+  /**
+   * Logout for user by Query
+   */
+  @Query(() => UserResponse, { nullable: true })
+  async logout(@Ctx() { req, res }: Context): Promise<UserResponse | null> {
+    try {
+      // Delete session
+      res.clearCookie(SESSION_COOKIE_NAME);
+      req.session.destroy((err) => {
+        if (err) {
+          console.log(err);
+          return {
+            code: 400,
+            success: false,
+            message: "Internal Error",
+          };
+        }
+        return;
+      });
+
+      return {
+        code: 200,
+        success: true,
+        message: "Successfully Logout",
+      };
+    } catch (error) {
+      console.log(error);
+      return {
+        code: 400,
+        success: false,
+        message: "Internal Error",
+      };
     }
   }
 }

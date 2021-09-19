@@ -20,5 +20,4 @@
 > Read backend and frontend documentation
 
 - [Front End](./client/README.md)
-
 - [Back End](./server/README.md)

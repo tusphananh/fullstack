@@ -3,14 +3,11 @@
 require("dotenv").config();
 require("reflect-metadata");
 const express = require("express");
-import { createConnection } from "typeorm";
-import Item from "./entities/Item";
-import User from "./entities/User";
-import { ApolloServer } from "apollo-server-express";
-import { buildSchema } from "type-graphql";
-import { ApolloServerPluginLandingPageGraphQLPlayground } from "apollo-server-core";
-import { UserResolver } from "./resolvers/User";
-import { ItemResolver } from "./resolvers/Item";
+const cors = require("cors");
+import { corsOptions } from "./constants/CorsOptions";
+import { ApolloConnection } from "./utils/ApolloConnection";
+import { postgresqlConnection } from "./utils/PostgresqlConnection";
+import { redisSession } from "./utils/RedisConnection";
 
 /**
  * TypeScript need main asysnc function
@@ -18,43 +15,49 @@ import { ItemResolver } from "./resolvers/Item";
 
 const main = async () => {
   const app = express();
+  app.use(cors(corsOptions));
+  /**
+   * Redis Connection
+   */
+  const redisConnection = await redisSession();
+  if (redisConnection) {
+    app.use(redisConnection);
+    console.log("Redis Connection Success" );
+  } else {
+    console.log("Redis Connection Failed");
+  }
 
   /**
    * Database Connection
    */
-    await createConnection({
-    type: "postgres",
-    host: process.env.DB_HOST || "localhost",
-    port: Number(process.env.DB_PORT),
-    username: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-    database: process.env.DB_NAME,
-    synchronize: true,
-    logging: true,
-    entities: [User, Item],
-  });
-  console.log("Database Connected");
+  const dbConnection = await postgresqlConnection();
+  if (dbConnection) {
+    console.log("Database Connection Success");
+  } else {
+    console.log("Database Connection Error");
+  }
 
   /**
    * Apollo Server
    */
-  const apolloServer = new ApolloServer({
-    schema: await buildSchema({
-      resolvers: [UserResolver,ItemResolver],
-      validate: false,
-    }),
-    plugins: [ApolloServerPluginLandingPageGraphQLPlayground()],
-  });
-
-  await apolloServer.start();
-  apolloServer.applyMiddleware({ app, cors: false });
+  const apolloServer = await ApolloConnection();
+  if (apolloServer) {
+    console.log("Apollo Server Success");
+    await apolloServer.start();
+    apolloServer.applyMiddleware({ app, cors: false });
+  } else {
+    console.log("Apollo Server Error");
+  }
 
   /**
    * Start Express Server
    */
+
   const PORT = process.env.PORT || 5000;
   app.listen(PORT, () => {
-    console.log(`Server is on http://localhost:${PORT} and graphql at http://localhost:${PORT}${apolloServer.graphqlPath}`);
+    console.log(
+      `Server is on http://localhost:${PORT} and graphql at http://localhost:${PORT}/graphql`
+    );
   });
 };
 
