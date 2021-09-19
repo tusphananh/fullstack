@@ -54,7 +54,7 @@ const main = async () => {
    */
   const PORT = process.env.PORT || 5000;
   app.listen(PORT, () => {
-    console.log(`Server is on ${PORT} and graphql at ${PORT}${apolloServer.graphqlPath}`);
+    console.log(`Server is on http://localhost:${PORT} and graphql at http://localhost:${PORT}${apolloServer.graphqlPath}`);
   });
 };
 

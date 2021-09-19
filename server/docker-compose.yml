@@ -5,8 +5,8 @@ services:
     image: dpage/pgadmin4
     container_name: "pgadmin4"
     environment:
-      PGADMIN_DEFAULT_EMAIL: "tusphananh@gmail.com" # Must be an email for login
-      PGADMIN_DEFAULT_PASSWORD: "Tupro@0603"
+      PGADMIN_DEFAULT_EMAIL: "test@test.com" # Must be an email for login
+      PGADMIN_DEFAULT_PASSWORD: "test123"
     ports:
       - "4444:80"
 
